@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoramento de Tempo de Percurso</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h2>Monitoramento de Tempo de Percurso</h2>
+    <form id="route-form">
+        <label>Ponto A: <input type="text" id="pointA" placeholder="Endereço Ponto A" required></label><br>
+        <label>Ponto B: <input type="text" id="pointB" placeholder="Endereço Ponto B" required></label><br>
+        <label>Início Ida: <input type="time" id="startMorning" required></label><br>
+        <label>Fim Ida: <input type="time" id="endMorning" required></label><br>
+        <label>Início Volta: <input type="time" id="startAfternoon" required></label><br>
+        <label>Fim Volta: <input type="time" id="endAfternoon" required></label><br>
+        <label>Dias de Monitoramento: <input type="number" id="days" min="1" required></label><br>
+        <button type="button" onclick="startMonitoring()">Iniciar Monitoramento</button>
+    </form>
+
+    <div id="results"></div>
+    <div>
+        <label>Escolha o Tipo de Gráfico:</label>
+        <select id="chartType">
+            <option value="all">Dados Agregados</option>
+            <option value="weekday">Por Dia da Semana</option>
+        </select>
+        <button type="button" onclick="generateChart()">Gerar Gráfico</button>
+        <canvas id="timeChart" width="400" height="200"></canvas>
+    </div>
+
+    <script>
+        const travelData = [];
+
+        async function getTravelTime(origin, destination) {
+            const service = new google.maps.DistanceMatrixService();
+            return new Promise((resolve, reject) => {
+                service.getDistanceMatrix({
+                    origins: [origin],
+                    destinations: [destination],
+                    travelMode: 'DRIVING',
+                }, (response, status) => {
+                    if (status === 'OK') {
+                        const duration = response.rows[0].elements[0].duration.value / 60; // Minutos
+                        resolve(duration);
+                    } else {
+                        reject('Erro ao obter o tempo de percurso.');
+                    }
+                });
+            });
+        }
+
+        function saveTravelData(pointA, pointB, duration, isMorning) {
+            const now = new Date();
+            travelData.push({
+                departure: pointA,
+                arrival: pointB,
+                day: now.toLocaleDateString('pt-BR', { weekday: 'long' }),
+                time: now.toLocaleTimeString('pt-BR'),
+                period: isMorning ? 'Ida' : 'Volta',
+                duration: duration
+            });
+        }
+
+        function generateChart() {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+            const chartType = document.getElementById('chartType').value;
+            const labels = travelData.map(data => data.time);
+            const durations = travelData.map(data => data.duration);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Tempo de Percurso (min)',
+                        data: durations,
+                        fill: false,
+                        borderColor: 'blue',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Hora do Dia' } },
+                        y: { title: { display: true, text: 'Tempo (min)' } }
+                    }
+                }
+            });
+        }
+
+        async function startMonitoring() {
+            const pointA = document.getElementById("pointA").value;
+            const pointB = document.getElementById("pointB").value;
+            const days = parseInt(document.getElementById("days").value);
+
+            try {
+                const travelTime = await getTravelTime(pointA, pointB);
+                saveTravelData(pointA, pointB, travelTime, true);
+                document.getElementById("results").innerHTML = `Tempo estimado: ${travelTime} minutos`;
+            } catch (error) {
+                alert(error);
+            }
+        }
+    </script>
+</body>
+</html>
