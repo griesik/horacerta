@@ -34,6 +34,20 @@
     <script>
         const travelData = [];
 
+        async function getCoordinates(address) {
+            return new Promise((resolve, reject) => {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ address: address }, (results, status) => {
+                    if (status === 'OK') {
+                        const location = results[0].geometry.location;
+                        resolve({ lat: location.lat(), lng: location.lng() });
+                    } else {
+                        reject('Erro ao obter coordenadas para o endereço: ' + address);
+                    }
+                });
+            });
+        }
+
         async function getTravelTime(origin, destination) {
             const service = new google.maps.DistanceMatrixService();
             return new Promise((resolve, reject) => {
@@ -52,6 +66,30 @@
             });
         }
 
+        async function startMonitoring() {
+            const pointA = document.getElementById("pointA").value;
+            const pointB = document.getElementById("pointB").value;
+            const days = parseInt(document.getElementById("days").value);
+            const interval = 5 * 60 * 1000; // 5 minutos em milissegundos
+
+            try {
+                const coordA = await getCoordinates(pointA);
+                const coordB = await getCoordinates(pointB);
+                for (let day = 0; day < days; day++) {
+                    const startTime = new Date();
+                    for (let t = startTime.getTime(); t < startTime.getTime() + 24 * 60 * 60 * 1000; t += interval) {
+                        setTimeout(async () => {
+                            const travelTime = await getTravelTime(coordA, coordB);
+                            saveTravelData(pointA, pointB, travelTime, true);
+                            document.getElementById("results").innerHTML = `Monitorando: ${pointA} para ${pointB} - Tempo: ${travelTime} min`;
+                        }, t - startTime.getTime());
+                    }
+                }
+            } catch (error) {
+                alert(error);
+            }
+        }
+
         function saveTravelData(pointA, pointB, duration, isMorning) {
             const now = new Date();
             travelData.push({
@@ -66,10 +104,8 @@
 
         function generateChart() {
             const ctx = document.getElementById('timeChart').getContext('2d');
-            const chartType = document.getElementById('chartType').value;
             const labels = travelData.map(data => data.time);
             const durations = travelData.map(data => data.duration);
-
             new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -77,9 +113,8 @@
                     datasets: [{
                         label: 'Tempo de Percurso (min)',
                         data: durations,
-                        fill: false,
                         borderColor: 'blue',
-                        tension: 0.1
+                        fill: false,
                     }]
                 },
                 options: {
@@ -89,20 +124,6 @@
                     }
                 }
             });
-        }
-
-        async function startMonitoring() {
-            const pointA = document.getElementById("pointA").value;
-            const pointB = document.getElementById("pointB").value;
-            const days = parseInt(document.getElementById("days").value);
-
-            try {
-                const travelTime = await getTravelTime(pointA, pointB);
-                saveTravelData(pointA, pointB, travelTime, true);
-                document.getElementById("results").innerHTML = `Tempo estimado: ${travelTime} minutos`;
-            } catch (error) {
-                alert(error);
-            }
         }
     </script>
 </body>
